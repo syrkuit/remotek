@@ -1,0 +1,33 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs() {
+    echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+    ;;
+esac
+
+. /scripts/functions
+
+kill -9 `cat /run/remotek.pid` 2> /dev/null
+IFDOWN="*"
+if [ -e /etc/remotek-initramfs.conf ]; then
+    . /etc/remotek-initramfs.conf
+fi
+if [ "$BOOT" != nfs ] && [ "$IFDOWN" != none ]; then
+    for IFACE in /sys/class/net/$IFDOWN; do
+        [ -e "$IFACE" ] || continue
+        IFACE="${IFACE#/sys/class/net/}"
+        log_begin_msg "Bringing down $IFACE"
+        ip link    set   dev "$IFACE" down
+        ip address flush dev "$IFACE"
+        ip route   flush dev "$IFACE"
+        log_end_msg
+    done
+fi

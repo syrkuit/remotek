@@ -1,0 +1,45 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs() {
+    echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+    ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+[ -r /etc/crypttab ] || exit 0
+[ -r /etc/remotek-initramfs.conf ] || exit 0
+
+. /etc/remotek-initramfs.conf
+
+if [ -z "$KEY_URL" ]; then
+    echo "ERROR: remotek: no KEY_URL set in /etc/remotek-initramfs.conf!" 1>&2
+    exit 1
+fi
+
+copy_file config /etc/remotek-initramfs.conf /etc/remotek-initramfs.conf
+copy_file adjtime /etc/adjtime /etc/adjtime
+copy_file localtime /etc/localtime /etc/localtime
+copy_exec /usr/bin/curl /bin
+copy_exec /usr/sbin/hwclock /sbin
+for i in /usr/lib/x86_64-linux-gnu/libnss_dns.so*
+do
+    copy_file `basename $i` $i /usr/lib/x86_64-linux-gnu/$i
+done
+copy_file ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+if [ ! -s /etc/initramfs-tools/conf.d/ip ]; then
+    echo "WARNING: remotek: no network configuration, remotek will not work!" 1>&2
+fi
+if [ -z "$NAMESERVERS" ]; then
+    echo "WARNING: remotek: no name server configured in /etc/remotek-initramfs.conf, will use 8.8.8.8 and 8.8.4.4" 1>&2
+    echo 'NAMESERVERS="8.8.8.8,8.8.4.4"' >> $DESTDIR/etc/remotek-initramfs.conf
+fi

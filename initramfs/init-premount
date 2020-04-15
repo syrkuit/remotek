@@ -1,0 +1,64 @@
+#!/bin/sh
+
+PREREQ="udev dropbear"
+
+prereqs() {
+    echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+    ;;
+esac
+
+[ "$IP" != off -a "$IP" != none ] || exit 0
+
+fetch_key() {
+    # dropbear will take care of setting up the network
+    ps -ef | grep dropbear | grep -v grep > /dev/null || configure_networking
+
+    # patiently wait for it
+    while [ -z "`ls /run/net-* 2> /dev/null`" ]; do
+      sleep 1
+    done
+
+    for dns in `echo $NAMESERVERS | sed 's/,/ /g'`
+    do
+      echo "nameserver $dns" > /etc/resolv.conf
+    done
+
+    if grep -q LOCAL /etc/adjtime 2> /dev/null; then
+        hwclock --hctosys --localtime
+    else
+        hwclock --hctosys --utc
+    fi
+
+    while [ /bin/true ];
+    do
+        key="`curl --no-progress-meter --write-out "%{stderr}%{http_code}" $KEY_URL 2> /run/remotek.code`"
+        cat /run/remotek.code | tee -a /run/remotek.log; echo
+        if [ "`cat /run/remotek.code`" = "200" ]; then
+            log_success_msg "rk success"
+            printf '%s' "$key" | /bin/cryptroot-unlock
+            rm /run/remotek.code
+            exit 0
+        fi
+        if [ "`cat /run/remotek.code`" != "000" ]; then
+            # 000 is any curl error, and since we didn't get a 200 either,
+            # it means we reached the server but something is off..
+            # try again, but less frequently
+            sleep 60
+        fi
+        sleep 1
+    done
+}
+
+if [ -e /etc/remotek-initramfs.conf ]; then
+    . /etc/remotek-initramfs.conf
+fi
+. /scripts/functions
+
+fetch_key &
+echo $! >/run/remotek.pid
