@@ -12,7 +12,7 @@ read -e -p "By proceeding, you acknowledge that you are using this at your own r
 [ "$yesno" != "Y" -a "$yesno" != "y" ] && exit 0
 
 # Figure out encrypted device
-crypt_devices="`awk '/^[^#]/ {print $1}' /etc/crypttab 2> /dev/null`"
+crypt_devices="`awk '/^[^#][^ ]+[ ]+[^ ]+[ ]+none/ {print $1}' /etc/crypttab 2> /dev/null`"
 if [ `echo $crypt_devices | wc -w` -ne 1 ]; then
     echo "Need a single encrypted device, found: $crypt_devices"
     exit 1
